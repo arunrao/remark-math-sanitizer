@@ -1,0 +1,54 @@
+{
+  "name": "remark-math-sanitizer",
+  "version": "1.0.0",
+  "description": "Pre-processing pipeline that fixes the most common ways LLM output breaks remark-math/KaTeX",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --no-dts --clean && tsc --emitDeclarationOnly --declarationMap --outDir dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "remark",
+    "math",
+    "latex",
+    "katex",
+    "llm",
+    "sanitize",
+    "remark-math",
+    "mdast",
+    "markdown"
+  ],
+  "author": "Arun Rao",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arunrao/remark-math-sanitizer.git"
+  },
+  "homepage": "https://github.com/arunrao/remark-math-sanitizer#readme",
+  "bugs": {
+    "url": "https://github.com/arunrao/remark-math-sanitizer/issues"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
