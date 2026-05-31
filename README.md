@@ -3,7 +3,7 @@
 A pre-processing pipeline that fixes the most common ways LLM output breaks [remark-math](https://github.com/remarkjs/remark-math) / [KaTeX](https://katex.org/) rendering.
 
 [![npm version](https://img.shields.io/npm/v/remark-math-sanitizer)](https://www.npmjs.com/package/remark-math-sanitizer)
-[![license](https://img.shields.io/npm/l/remark-math-sanitizer)](./LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 ---
 
