@@ -238,7 +238,10 @@ function normalizeGarbledMathInner(inner: string): string {
 export function escapeGarbledInlineMath(content: string): string {
   if (!content) return content;
 
-  const INLINE_MATH_RE = /(?<!\$)\$(?!\$)((?:[^$\n])+?)\$(?!\$)/g;
+  // Excludes both `$$` (display math) and already-escaped `\$` so the second
+  // pipeline pass does not re-wrap spans this function escaped on the first
+  // pass — that would turn `\$prose\$` into `\\$prose\\$`.
+  const INLINE_MATH_RE = /(?<![\\$])\$(?!\$)((?:[^$\n])+?)(?<!\\)\$(?!\$)/g;
 
   return content.replace(INLINE_MATH_RE, (match, inner: string) => {
     const isBoldMarkersInside = /\*\*|\* \*|__/.test(inner);

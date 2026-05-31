@@ -255,6 +255,17 @@ describe('sanitizeLatexContent', () => {
     expect(result).not.toMatch(/(?<!\\)\$7\.2 m at/);
   });
 
+  it('does not double-escape already-escaped prose on the second pass', () => {
+    // Regression: the second escapeGarbledInlineMath pass used to re-match
+    // \$prose\$ and re-wrap it as \\$prose\\$, which markdown then renders as
+    // a literal backslash followed by an unbalanced $ that opens math mode.
+    const input = 'The displacement is $7.2 m at 33.7° above the positive $x$ direction.';
+    const result = sanitizeLatexContent(input);
+    expect(result).not.toMatch(/\\\\\$/); // no `\\$`
+    expect(result).toContain('\\$7.2 m at');
+    expect(result).toContain('positive \\$x');
+  });
+
   it('unwraps garbled displacement prose (plain degree angle)', () => {
     const input = 'displacement is 10 m at about $53.1^\\circ above the positive x$-axis.';
     const result = sanitizeLatexContent(input);
