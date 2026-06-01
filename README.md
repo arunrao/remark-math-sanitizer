@@ -212,6 +212,39 @@ This tells the model to use `$…$` / `$$…$$` delimiters, avoid mixing currenc
 
 ---
 
+## Examples
+
+A complete, runnable sample client lives in [`examples/demo`](./examples/demo). It installs `remark-math-sanitizer` from npm and pipes the five failure-mode inputs through a real `unified` → `remark-math` → `rehype-katex` pipeline, then asserts both the sanitized string and the rendered HTML.
+
+```sh
+cd examples/demo
+npm install
+npm test          # automated PASS/FAIL checks
+npm run render    # writes output.html for visual side-by-side comparison
+```
+
+### Example inputs and sanitized outputs
+
+| # | Failure mode | Raw input | Sanitized output |
+|---|---|---|---|
+| 1 | Currency before math | `Cost $50 then $E=mc^2$ done.` | `Cost \$50 then $E=mc^2$ done.` |
+| 2 | Garbled prose in `$…$` | `The displacement is $7.2 m at 33.7° above the positive $x$ direction.` | `The displacement is \$7.2 m at 33.7° above the positive \$x$ direction.` |
+| 3 | Bare LaTeX environment | `\begin{equation}E=mc^2\end{equation}` | `$$\n\begin{equation}E=mc^2\end{equation}\n$$` |
+| 4 | `%` inside math | `We are $50\%$ complete.` | `We are $50\%$ complete.` *(preserved — already escaped)* |
+| 5 | Unicode in math spans | `Let $\alpha” + 1$ be defined.` | `Let $\alpha" + 1$ be defined.` *(smart quote → ASCII)* |
+
+### What each case proves
+
+- **Case 1** — the `$` on `$50` is escaped, so the opening `$` of `$E=mc^2$` is no longer stolen by remark-math; KaTeX renders the equation correctly.
+- **Case 2** — both stray `$` are escaped (single backslash, never `\\$`), so KaTeX never sees the garbled span. The rendered HTML contains **no** `class="katex"` for this paragraph.
+- **Case 3** — the bare environment is wrapped in `$$…$$`, producing a `katex-display` block.
+- **Case 4** — the explicit `\%` survives the pipeline; KaTeX renders `50%`.
+- **Case 5** — the smart right-double-quote (`\u201D`) inside the math span is replaced with ASCII `"`, avoiding a KaTeX strict-mode error.
+
+The demo also runs sanity checks on the smaller exported helpers (`containsMathExpressions`, `normalizeLatexDelimiters`, `wrapBareLatexEnvironments`).
+
+---
+
 ## Exports
 
 | Export | Description |

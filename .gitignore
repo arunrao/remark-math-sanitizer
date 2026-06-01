@@ -37,3 +37,7 @@ Thumbs.db
 
 # Package outputs
 *.tgz
+
+# Example artifacts
+examples/**/output.html
+examples/**/package-lock.json
