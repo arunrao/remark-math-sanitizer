@@ -9,6 +9,7 @@ import {
   normalizeLatexDelimiters,
   containsMathExpressions,
   wrapBareLatexEnvironments,
+  stripCurrencyDollarBeforeMathResult,
 } from '../src/index.js';
 
 // ─── escapeCurrencyDollars ────────────────────────────────────────────────────
@@ -349,38 +350,43 @@ describe('sanitizeLatexContent', () => {
     expect(result).not.toMatch(/&#36;E=mc/);
   });
 
-  it('escapes currency with parenthetical citations like $15(18)', () => {
-    expect(escapeCurrencyDollars('Pay $15(18) per item.')).toBe(
-      'Pay &#36;15(18) per item.'
-    );
-    expect(escapeCurrencyDollars('Pay $15(18) per item.', { currencyEscape: 'backslash' })).toBe(
-      'Pay \\$15(18) per item.'
-    );
+  it('preserves $15(18) parenthetical citation in prose (no currency escape)', () => {
+    // Bare `(` is NOT a currency boundary — `$15(18)` could be a math span,
+    // a citation, or currency-then-citation. Without a parenthesised arithmetic
+    // expression around it (see step 0c), we leave it untouched and let the
+    // garbled-prose detection / downstream renderer decide.
+    expect(escapeCurrencyDollars('Pay $15(18) per item.')).toBe('Pay $15(18) per item.');
   });
 
-  it('does NOT treat $5(x+y)$ as currency (real math preserved)', () => {
-    // `(` followed by a non-digit must NOT be a currency boundary.
+  it('preserves $5(x+y)$ as real math', () => {
     expect(sanitizeLatexContent('Solve $5(x+y)$ now.')).toContain('$5(x+y)$');
   });
 
-  it('escapes back-to-back currency $380$ pattern', () => {
-    expect(escapeCurrencyDollars('Owe $380$ today.')).toBe('Owe &#36;380$ today.');
+  it('collapses $calc = $RESULT$ into a single math span (step 0c)', () => {
+    // Reported: `$15(18) + 5(22) = $380$` rendered as a broken KaTeX
+    // expression because the second `$` (before `380`) prematurely closed the
+    // span. Step 0c rewrites this to `$15(18) + 5(22) = 380$` so KaTeX sees a
+    // single valid math span and renders the full calculation.
+    expect(stripCurrencyDollarBeforeMathResult('$15(18) + 5(22) = $380$')).toBe(
+      '$15(18) + 5(22) = 380$'
+    );
+    const result = sanitizeLatexContent('$15(18) + 5(22) = $380$');
+    expect(result).toBe('$15(18) + 5(22) = 380$');
+    expect(result).not.toContain('&#36;'); // no currency escape applied
   });
 
-  it('fixes currency-arithmetic with embedded equals sign (regression)', () => {
-    // Reported: $15(18) + 5(22) = $380$ was protected as math (inner has =)
-    // and rendered as a broken KaTeX expression. Step 1b now skips spans
-    // that open with a digit and contain no \cmd.
-    const input = '$15(18) + 5(22) = $380$';
-    const result = sanitizeLatexContent(input);
-    expect(result).toContain('&#36;15(18)');
-    expect(result).toContain('&#36;380');
-    expect(result).not.toMatch(/\$15\(18\) \+ 5\(22\) = \$/); // not a math span
+  it('step 0c handles backslash-escaped currency before result', () => {
+    // Some LLM output emits `\$380$` (already escaped) — the regex still strips
+    // the spurious dollar.
+    expect(
+      stripCurrencyDollarBeforeMathResult('$x(2) + y(3) = \\$42$')
+    ).toBe('$x(2) + y(3) = 42$');
   });
 
-  it('escapes currency-arithmetic without embedded equals', () => {
-    expect(sanitizeLatexContent('Total: $15(18) + $380(22)')).toBe(
-      'Total: &#36;15(18) + &#36;380(22)'
+  it('step 0c does NOT touch prose that happens to contain "= $50"', () => {
+    // No parenthesised group before `=` → pattern does not match.
+    expect(stripCurrencyDollarBeforeMathResult('budget = $50 plus extras')).toBe(
+      'budget = $50 plus extras'
     );
   });
 

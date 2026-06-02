@@ -1,6 +1,6 @@
 {
   "name": "remark-math-sanitizer",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Pre-processing pipeline that fixes the most common ways LLM output breaks remark-math/KaTeX",
   "type": "module",
   "exports": {

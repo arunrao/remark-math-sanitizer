@@ -129,17 +129,6 @@ const CURRENCY_UNIT_BOUNDARY =
   '(?:\\s|[.,;:!?\\)\\]}"\'\\u3001\\uFF0C\\uFF01\\uFF1F\\u4e00-\\u9fff]|$)';
 
 /**
- * Boundary used by the **plain currency** match only — same as
- * CURRENCY_UNIT_BOUNDARY plus two patterns common in LLM output:
- *   - `\(\d` for parenthetical citations like `$15(18)`
- *   - `\$`   for back-to-back currencies like `$380$` or `$5$`
- * Kept separate from CURRENCY_UNIT_BOUNDARY so magnitude / displacement
- * matches (which legitimately appear inside math) are not affected.
- */
-const PLAIN_CURRENCY_BOUNDARY =
-  '(?:\\s|[.,;:!?\\)\\]}"\'\\u3001\\uFF0C\\uFF01\\uFF1F\\u4e00-\\u9fff]|\\(\\d|\\$|$)';
-
-/**
  * Magnitude suffixes commonly attached to currency amounts (e.g. $5M, $10k).
  * Constrained to a known set so we don't escape real inline math like $5x$.
  */
@@ -190,9 +179,7 @@ export function escapeCurrencyDollars(content: string, options?: SanitizeOptions
       // when followed by `.<digits><letter>` (e.g. `$9.8t$`, `$3.14r$`),
       // which would otherwise treat the leading `9` as currency and break
       // the real math span.
-      // Uses PLAIN_CURRENCY_BOUNDARY (extended with `\(\d` and `\$`) so
-      // patterns like `$15(18)` and `$380$` are caught.
-      `\\d[\\d,]*(?:\\.\\d{1,2})?(?!\\.\\d+[A-Za-z])${PLAIN_CURRENCY_BOUNDARY}`,
+      `\\d[\\d,]*(?:\\.\\d{1,2})?(?!\\.\\d+[A-Za-z])${unitBoundary}`,
       '|',
       // Displacement / unit suffix — e.g. $4.0T, $2.0L, $4.0TV8
       `\\d+\\.\\d+[A-Z][A-Za-z0-9]{0,3}${unitBoundary}`,
@@ -356,6 +343,32 @@ export function wrapBareLatexEnvironments(content: string): string {
   return content.replace(ENV_RE, (_m, env: string) => `$$\n${env}\n$$`);
 }
 
+/**
+ * Strips a stray currency `$` that appears immediately before the **result**
+ * of a parenthesised arithmetic expression, e.g.
+ *
+ *   `$15(18) + 5(22) = $380$`
+ *
+ * Without this step the second `$` (the one before `380`) closes the math span
+ * prematurely; KaTeX then renders `15(18) + 5(22) = \` in red and the trailing
+ * `380$` falls out as prose. Removing the spurious `$` collapses the input
+ * into a single valid math span:
+ *
+ *   `$15(18) + 5(22) = 380$`
+ *
+ * The pattern is intentionally narrow — it requires a parenthesised group
+ * **before** an `=` sign — so prose that happens to contain `= $50` is
+ * untouched. Runs as **step 0c** of the main pipeline, before math
+ * protection so the cleaned-up span is recognised as real math downstream.
+ */
+export function stripCurrencyDollarBeforeMathResult(content: string): string {
+  if (!content) return content;
+  return content.replace(
+    /(\([^)]+\)[^$\n]*=\s+)\\?\$(\d[\d,]*(?:\.\d+)?)\$(?!\$)/g,
+    '$1$2$'
+  );
+}
+
 // ─── Main pipeline ────────────────────────────────────────────────────────────
 
 /**
@@ -368,6 +381,8 @@ export function wrapBareLatexEnvironments(content: string): string {
  * **Pipeline steps:**
  *
  * 0. `wrapBareLatexEnvironments`   — wrap bare `\begin{equation}` in `$$`
+ * 0c. `stripCurrencyDollarBeforeMathResult` — collapse `$calc = $RESULT$`
+ *     into a single math span (handles `$15(18) + 5(22) = $380$`)
  * 1. PROTECT real math spans       — replace `$…$` / `$$…$$` that contain
  *    LaTeX structural tokens (`\`, `^`, `_`, `=`) with null-byte placeholders
  *    so currency escaping cannot alter their delimiters
@@ -403,6 +418,10 @@ export function sanitizeLatexContent(content: string, options?: SanitizeOptions)
 
   // Step 0: wrap bare LaTeX environments
   let result = wrapBareLatexEnvironments(content);
+
+  // Step 0c: collapse `$calc = $RESULT$` into a single math span. Has to run
+  // BEFORE step 1 protection so the cleaned-up span is recognised as math.
+  result = stripCurrencyDollarBeforeMathResult(result);
 
   // Step 0b: escape displacement/unit measurements that appear as paired $VALUE$
   // spans (e.g. "$6.2L$", "$4.0T$", "$4.0TV8$"). These have dollar signs on
@@ -475,18 +494,11 @@ export function sanitizeLatexContent(content: string, options?: SanitizeOptions)
       const close = positions[nextK];
       const inner = result.slice(open + 1, close);
       if (inner.includes('\n')) continue; // never pair across newlines
-      if (!MATH_TOKEN_RE.test(inner)) continue;
-      // Refinement: a span whose inner starts with a digit AND contains no
-      // `\<letter>` LaTeX command is almost certainly a currency-arithmetic
-      // pattern like `$15(18) + 5(22) = $`, NOT a real math expression.
-      // Real math that opens with a digit (e.g. `$2x = 4$`) typically still
-      // contains a backslash command somewhere, or is a short literal that
-      // doesn't need protection at all. Skip these so step 5 can escape the
-      // currency `$15(`, `$380$`, etc.
-      if (/^\d/.test(inner) && !/\\[a-zA-Z]/.test(inner)) continue;
-      toProtect.push({ open, close });
-      claimed.add(open);
-      claimed.add(close);
+      if (MATH_TOKEN_RE.test(inner)) {
+        toProtect.push({ open, close });
+        claimed.add(open);
+        claimed.add(close);
+      }
     }
 
     // Apply replacements right-to-left so left-side offsets remain valid.

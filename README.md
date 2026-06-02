@@ -260,8 +260,9 @@ The demo also runs sanity checks on the smaller exported helpers (`containsMathE
 
 | Export | Description |
 |---|---|
-| `sanitizeLatexContent(str, options?)` | **Main function.** Runs the full 10-step pipeline. |
+| `sanitizeLatexContent(str, options?)` | **Main function.** Runs the full 11-step pipeline. |
 | `wrapBareLatexEnvironments(str)` | Wraps `\begin{equation}…\end{equation}` (and other display environments) in `$$…$$`. |
+| `stripCurrencyDollarBeforeMathResult(str)` | Collapses `$calc = $RESULT$` (e.g. `$15(18) + 5(22) = $380$`) into a single math span by removing the spurious `$` before the result. |
 | `escapeGarbledInlineMath(str)` | Detects and escapes `$…$` spans that contain prose rather than LaTeX. |
 | `escapeCurrencyDollars(str)` | Escapes `$50`, `$5M`, `$4.0T` etc. so they are not parsed as math. |
 | `escapeCurrencyRanges(str)` | Escapes both `$` in ranges like `$5–$10`. |
@@ -328,6 +329,13 @@ LLM output
     ▼
 0.  wrapBareLatexEnvironments
     └─ \begin{equation}…\end{equation} → $$\n\begin{equation}…\end{equation}\n$$
+    │
+    ▼
+0c. stripCurrencyDollarBeforeMathResult
+    └─ $calc = $RESULT$  →  $calc = RESULT$
+       Required pattern: parenthesised group + `=` + `$<digits>$`.
+       e.g. `$15(18) + 5(22) = $380$` → `$15(18) + 5(22) = 380$`
+       (KaTeX then renders the entire calculation as one valid span).
     │
     ▼
 1.  PROTECT real math spans
