@@ -22,6 +22,46 @@
  *   // pass `clean` to ReactMarkdown with remarkMath + rehypeKatex
  */
 
+// ─── Configuration ────────────────────────────────────────────────────────────
+
+/**
+ * How currency dollar signs are escaped so remark-math does not pair them.
+ *
+ * - `'entity'` (default, recommended)  emits `&#36;`. HTML character references
+ *   are tokenised separately from math delimiters by every CommonMark-conformant
+ *   parser (including the micromark pipeline used by remark-math) and survive
+ *   any plugin order, custom transformer, or middleware that might otherwise
+ *   un-escape backslash sequences before math parsing.
+ *
+ * - `'backslash'`  emits `\$`. Works correctly in a standard `remark-parse` +
+ *   `remark-math` pipeline, but some real-world stacks normalise backslash
+ *   escapes ahead of math tokenisation, which re-exposes the `$` and lets
+ *   remark-math re-pair currency dollars across prose. Provided for
+ *   backward compatibility with `1.x` output.
+ */
+export type CurrencyEscapeStyle = 'entity' | 'backslash';
+
+/** Options accepted by every escape helper and by `sanitizeLatexContent`. */
+export interface SanitizeOptions {
+  /** Defaults to `'entity'` as of `2.0.0`. */
+  currencyEscape?: CurrencyEscapeStyle;
+}
+
+interface ResolvedOptions {
+  currencyEscape: CurrencyEscapeStyle;
+}
+
+function resolveOptions(options?: SanitizeOptions): ResolvedOptions {
+  return {
+    currencyEscape: options?.currencyEscape ?? 'entity',
+  };
+}
+
+/** Returns the literal string used to escape a `$` for the given style. */
+function dollarEscape(style: CurrencyEscapeStyle): string {
+  return style === 'entity' ? '&#36;' : '\\$';
+}
+
 // ─── Delimiter normalisation ──────────────────────────────────────────────────
 
 /**
@@ -78,9 +118,10 @@ export function containsMathExpressions(content: string): boolean {
  * Escapes standalone `$` characters that are not part of math expressions.
  * Conservative: only escapes `$` followed by whitespace or end-of-line.
  */
-export function escapeLatexSpecialChars(content: string): string {
+export function escapeLatexSpecialChars(content: string, options?: SanitizeOptions): string {
   if (!content) return content;
-  return content.replace(/\$(?=\s|$)/g, '\\$');
+  const esc = dollarEscape(resolveOptions(options).currencyEscape);
+  return content.replace(/\$(?=\s|$)/g, esc);
 }
 
 /** Punctuation / boundaries that end a currency or unit token (incl. CJK). */
@@ -98,13 +139,14 @@ const CURRENCY_MAGNITUDE = '(?:bn|mn|MM|[kKmMbBtT])';
  * left dangling. remark-math would otherwise pair the two `$` and treat the
  * dash + second amount as inline math.
  */
-export function escapeCurrencyRanges(content: string): string {
+export function escapeCurrencyRanges(content: string, options?: SanitizeOptions): string {
   if (!content) return content;
+  const esc = dollarEscape(resolveOptions(options).currencyEscape);
 
   return content.replace(
     /(?<![\\$])\$(\d[\d,]*(?:\.\d+)?(?:bn|mn|MM|[kKmMbBtT])?)(\s*[-\u2013\u2014~]\s*)\$(\d)/g,
     (_match, amount: string, mid: string, nextDigit: string) =>
-      `\\$${amount}${mid}\\$${nextDigit}`
+      `${esc}${amount}${mid}${esc}${nextDigit}`
   );
 }
 
@@ -120,8 +162,9 @@ export function escapeCurrencyRanges(content: string): string {
  *
  * Does NOT escape `$$` (display math) or `$` in real math context.
  */
-export function escapeCurrencyDollars(content: string): string {
+export function escapeCurrencyDollars(content: string, options?: SanitizeOptions): string {
   if (!content) return content;
+  const esc = dollarEscape(resolveOptions(options).currencyEscape);
 
   const unitBoundary = CURRENCY_UNIT_BOUNDARY;
   const pattern = new RegExp(
@@ -131,8 +174,12 @@ export function escapeCurrencyDollars(content: string): string {
       // Magnitude amount — e.g. $5M, $10k, $3bn, $1.5B
       `\\d[\\d,]*(?:\\.\\d+)?${CURRENCY_MAGNITUDE}${unitBoundary}`,
       '|',
-      // Plain currency — number then boundary
-      `\\d[\\d,]*(?:\\.\\d{1,2})?${unitBoundary}`,
+      // Plain currency — number then boundary.
+      // Negative lookahead `(?!\.\d+[A-Za-z])` prevents matching just `$9`
+      // when followed by `.<digits><letter>` (e.g. `$9.8t$`, `$3.14r$`),
+      // which would otherwise treat the leading `9` as currency and break
+      // the real math span.
+      `\\d[\\d,]*(?:\\.\\d{1,2})?(?!\\.\\d+[A-Za-z])${unitBoundary}`,
       '|',
       // Displacement / unit suffix — e.g. $4.0T, $2.0L, $4.0TV8
       `\\d+\\.\\d+[A-Z][A-Za-z0-9]{0,3}${unitBoundary}`,
@@ -144,7 +191,7 @@ export function escapeCurrencyDollars(content: string): string {
     'g'
   );
 
-  return content.replace(pattern, '\\$');
+  return content.replace(pattern, esc);
 }
 
 /**
@@ -235,12 +282,14 @@ function normalizeGarbledMathInner(inner: string): string {
  * When triggered, both `$` delimiters are escaped to `\$` so remark-math
  * treats the span as plain text and KaTeX never sees it.
  */
-export function escapeGarbledInlineMath(content: string): string {
+export function escapeGarbledInlineMath(content: string, options?: SanitizeOptions): string {
   if (!content) return content;
+  const esc = dollarEscape(resolveOptions(options).currencyEscape);
 
   // Excludes both `$$` (display math) and already-escaped `\$` so the second
   // pipeline pass does not re-wrap spans this function escaped on the first
-  // pass — that would turn `\$prose\$` into `\\$prose\\$`.
+  // pass — that would turn `\$prose\$` into `\\$prose\\$`. With entity-style
+  // escaping the dollars are replaced entirely so re-matching is impossible.
   const INLINE_MATH_RE = /(?<![\\$])\$(?!\$)((?:[^$\n])+?)(?<!\\)\$(?!\$)/g;
 
   return content.replace(INLINE_MATH_RE, (match, inner: string) => {
@@ -265,7 +314,7 @@ export function escapeGarbledInlineMath(content: string): string {
     }
 
     const normalized = normalizeGarbledMathInner(inner);
-    return `\\$${normalized}\\$`;
+    return `${esc}${normalized}${esc}`;
   });
 }
 
@@ -334,8 +383,10 @@ export function wrapBareLatexEnvironments(content: string): string {
  * return <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{clean}</ReactMarkdown>;
  * ```
  */
-export function sanitizeLatexContent(content: string): string {
+export function sanitizeLatexContent(content: string, options?: SanitizeOptions): string {
   if (!content) return content;
+  const opts = resolveOptions(options);
+  const esc = dollarEscape(opts.currencyEscape);
 
   // Step 0: wrap bare LaTeX environments
   let result = wrapBareLatexEnvironments(content);
@@ -355,7 +406,7 @@ export function sanitizeLatexContent(content: string): string {
     (_m, amount: string) => {
       // Never touch spans that contain real LaTeX structural tokens.
       if (/[\\^_=]/.test(amount)) return `$${amount}$`;
-      return `\\$${amount}\\$`;
+      return `${esc}${amount}${esc}`;
     }
   );
 
@@ -366,29 +417,80 @@ export function sanitizeLatexContent(content: string): string {
   // currency-range spans like $5M-$10M (no structural tokens).
   const spans: string[] = [];
   const MATH_TOKEN_RE = /[\\^_=]/;
-  result = result.replace(
-    /\$\$[\s\S]*?\$\$|(?<!\$)\$(?!\$)(?:[^$\n])+?\$(?!\$)/g,
-    (m) => {
-      if (MATH_TOKEN_RE.test(m)) {
-        spans.push(m);
-        return `\u0000MATH${spans.length - 1}\u0000`;
-      }
-      return m;
+
+  // 1a. Display math $$...$$ — always atomic, left-to-right.
+  result = result.replace(/\$\$[\s\S]*?\$\$/g, (m) => {
+    if (MATH_TOKEN_RE.test(m)) {
+      spans.push(m);
+      return `\u0000MATH${spans.length - 1}\u0000`;
     }
-  );
+    return m;
+  });
+
+  // 1b. Inline math $...$ — pair using a consecutive-position scan that
+  // PREFERS math-token-containing inner content over the naive lazy
+  // left-to-right pairing.
+  //
+  // Why: lazy regex pairing breaks `Cost $50 then $E=mc^2$` by consuming the
+  // opening `$` of the math span as the closing of the currency span. By
+  // walking consecutive `$` positions and only protecting pairs whose inner
+  // contains a structural LaTeX token, we let the orphan currency `$` fall
+  // through to later steps where it is correctly escaped, while the real
+  // math span is shielded from currency-escaping mutations.
+  {
+    const positions: number[] = [];
+    for (let i = 0; i < result.length; i++) {
+      if (result[i] !== '$') continue;
+      if (result[i - 1] === '\\') continue;           // skip \$ escapes
+      if (result[i - 1] === '$' || result[i + 1] === '$') continue; // skip $$
+      positions.push(i);
+    }
+
+    // Collect math-token-containing pairs by scanning consecutive positions.
+    // When a pair fails the math check, leave both endpoints available for
+    // a later pair to claim (this is what lets `$50 then $E=mc^2$` work — the
+    // pair (p1,p2) has no math, so p2 is free to pair with p3 as math).
+    type Pair = { open: number; close: number };
+    const toProtect: Pair[] = [];
+    const claimed = new Set<number>();
+    for (let k = 0; k < positions.length - 1; k++) {
+      if (claimed.has(positions[k])) continue;
+      let nextK = k + 1;
+      while (nextK < positions.length && claimed.has(positions[nextK])) nextK++;
+      if (nextK >= positions.length) break;
+      const open = positions[k];
+      const close = positions[nextK];
+      const inner = result.slice(open + 1, close);
+      if (inner.includes('\n')) continue; // never pair across newlines
+      if (MATH_TOKEN_RE.test(inner)) {
+        toProtect.push({ open, close });
+        claimed.add(open);
+        claimed.add(close);
+      }
+    }
+
+    // Apply replacements right-to-left so left-side offsets remain valid.
+    toProtect.sort((a, b) => b.open - a.open);
+    for (const { open, close } of toProtect) {
+      const span = result.slice(open, close + 1);
+      spans.push(span);
+      const placeholder = `\u0000MATH${spans.length - 1}\u0000`;
+      result = result.slice(0, open) + placeholder + result.slice(close + 1);
+    }
+  }
 
   // Steps 2–5: sanitize non-protected content
-  result = escapeGarbledInlineMath(result);
+  result = escapeGarbledInlineMath(result, opts);
   result = escapeMathPercent(result);
-  result = escapeCurrencyRanges(result);
-  result = escapeCurrencyDollars(result);
+  result = escapeCurrencyRanges(result, opts);
+  result = escapeCurrencyDollars(result, opts);
 
   // Step 6: restore protected math spans
   result = result.replace(/\u0000MATH(\d+)\u0000/g, (_m, i) => spans[+i]);
 
   // Step 7: second garbled-math pass — catches spans protected in step 1
   // that turn out to be physics prose (e.g. "$53.1^\circ above the positive $")
-  result = escapeGarbledInlineMath(result);
+  result = escapeGarbledInlineMath(result, opts);
 
   // Steps 8–10: delimiter conversion and math-internal sanitization
   result = normalizeLatexDelimiters(result);

@@ -214,9 +214,13 @@ This tells the model to use `$…$` / `$$…$$` delimiters, avoid mixing currenc
 
 ## Examples
 
-A complete, runnable sample client lives in [`examples/demo`](./examples/demo). It installs `remark-math-sanitizer` from npm and pipes the five failure-mode inputs through a real `unified` → `remark-math` → `rehype-katex` pipeline, then asserts both the sanitized string and the rendered HTML.
+A complete, runnable sample client lives in [`examples/demo`](./examples/demo). It pipes the five failure-mode inputs through a real `unified` → `remark-math` → `rehype-katex` pipeline and asserts both the sanitized string and the rendered HTML.
 
 ```sh
+# from the repo root, build once so the demo's file:../.. dep resolves
+npm install
+npm run build
+
 cd examples/demo
 npm install
 npm test          # automated PASS/FAIL checks
@@ -227,16 +231,23 @@ npm run render    # writes output.html for visual side-by-side comparison
 
 | # | Failure mode | Raw input | Sanitized output |
 |---|---|---|---|
-| 1 | Currency before math | `Cost $50 then $E=mc^2$ done.` | `Cost \$50 then $E=mc^2$ done.` |
-| 2 | Garbled prose in `$…$` | `The displacement is $7.2 m at 33.7° above the positive $x$ direction.` | `The displacement is \$7.2 m at 33.7° above the positive \$x$ direction.` |
+| 1 | Currency before math | `Cost $50 then $E=mc^2$ done.` | `Cost &#36;50 then $E=mc^2$ done.` |
+| 2 | Garbled prose in `$…$` | `The displacement is $7.2 m at 33.7° above the positive $x$ direction.` | `The displacement is &#36;7.2 m at 33.7° above the positive &#36;x$ direction.` |
 | 3 | Bare LaTeX environment | `\begin{equation}E=mc^2\end{equation}` | `$$\n\begin{equation}E=mc^2\end{equation}\n$$` |
 | 4 | `%` inside math | `We are $50\%$ complete.` | `We are $50\%$ complete.` *(preserved — already escaped)* |
 | 5 | Unicode in math spans | `Let $\alpha” + 1$ be defined.` | `Let $\alpha" + 1$ be defined.` *(smart quote → ASCII)* |
 
+> **2.0 default — entity escaping.** Currency dollar signs are escaped as the HTML
+> character reference `&#36;` rather than `\$`. Entities are tokenised separately
+> from math delimiters by every CommonMark-conformant parser and survive any
+> plugin order, custom transformer, or middleware that might un-escape backslash
+> sequences before math parsing. Pass `{ currencyEscape: 'backslash' }` to opt
+> back into the 1.x output style — see [Options](#options) below.
+
 ### What each case proves
 
-- **Case 1** — the `$` on `$50` is escaped, so the opening `$` of `$E=mc^2$` is no longer stolen by remark-math; KaTeX renders the equation correctly.
-- **Case 2** — both stray `$` are escaped (single backslash, never `\\$`), so KaTeX never sees the garbled span. The rendered HTML contains **no** `class="katex"` for this paragraph.
+- **Case 1** — the `$` on `$50` is escaped to `&#36;`, so the opening `$` of `$E=mc^2$` is no longer stolen by remark-math; KaTeX renders the equation correctly.
+- **Case 2** — both stray `$` are replaced with `&#36;`, so KaTeX never sees the garbled span. The rendered HTML contains **no** `class="katex"` for this paragraph.
 - **Case 3** — the bare environment is wrapped in `$$…$$`, producing a `katex-display` block.
 - **Case 4** — the explicit `\%` survives the pipeline; KaTeX renders `50%`.
 - **Case 5** — the smart right-double-quote (`\u201D`) inside the math span is replaced with ASCII `"`, avoiding a KaTeX strict-mode error.
@@ -249,7 +260,7 @@ The demo also runs sanity checks on the smaller exported helpers (`containsMathE
 
 | Export | Description |
 |---|---|
-| `sanitizeLatexContent(str)` | **Main function.** Runs the full 10-step pipeline. |
+| `sanitizeLatexContent(str, options?)` | **Main function.** Runs the full 10-step pipeline. |
 | `wrapBareLatexEnvironments(str)` | Wraps `\begin{equation}…\end{equation}` (and other display environments) in `$$…$$`. |
 | `escapeGarbledInlineMath(str)` | Detects and escapes `$…$` spans that contain prose rather than LaTeX. |
 | `escapeCurrencyDollars(str)` | Escapes `$50`, `$5M`, `$4.0T` etc. so they are not parsed as math. |
@@ -260,6 +271,50 @@ The demo also runs sanity checks on the smaller exported helpers (`containsMathE
 | `containsMathExpressions(str)` | Returns `true` if the string contains any math expression. |
 | `escapeLatexSpecialChars(str)` | Escapes standalone `$` followed by whitespace. |
 | `LATEX_FORMATTING_GUIDELINES` | System-prompt snippet instructing LLMs to emit well-formed LaTeX. |
+
+---
+
+## Options
+
+All escape helpers and `sanitizeLatexContent` accept an optional second argument:
+
+```ts
+interface SanitizeOptions {
+  /**
+   * How currency dollar signs are escaped so remark-math does not pair them.
+   *
+   * - `'entity'`     (default)  emit `&#36;`. Survives any plugin order or
+   *                              middleware that might un-escape backslashes.
+   * - `'backslash'`              emit `\$`. 1.x behaviour. Use only if your
+   *                              downstream renderer doesn't decode HTML
+   *                              entities (rare).
+   */
+  currencyEscape?: 'entity' | 'backslash';
+}
+```
+
+```ts
+import { sanitizeLatexContent } from 'remark-math-sanitizer';
+
+// Default — entity escaping (recommended)
+sanitizeLatexContent('Cost $50 then $E=mc^2$ done.');
+// → 'Cost &#36;50 then $E=mc^2$ done.'
+
+// Opt-in 1.x backslash escaping
+sanitizeLatexContent('Cost $50 then $E=mc^2$ done.', { currencyEscape: 'backslash' });
+// → 'Cost \\$50 then $E=mc^2$ done.'
+```
+
+### Migrating from 1.x
+
+The **only** breaking change in 2.0 is the default escape style. If you assert
+on literal substrings of sanitized output (e.g. in tests), either:
+
+1. Update assertions from `\$` to `&#36;`, **or**
+2. Pass `{ currencyEscape: 'backslash' }` everywhere to preserve old output.
+
+The rendered HTML is identical in both modes — `&#36;` and `\$` both decode to a
+literal `$` character in the final DOM.
 
 ---
 
@@ -276,7 +331,11 @@ LLM output
     │
     ▼
 1.  PROTECT real math spans
-    └─ $…$ containing \cmd / ^ / _ / = → \0MATHn\0 placeholder
+    └─ 1a. $$…$$ display math (atomic, left-to-right)
+    └─ 1b. $…$ inline math, paired by consecutive-position scan that
+          PREFERS math-token-containing inner over lazy left-to-right
+          pairing — correctly identifies $E=mc^2$ in
+          "Cost $50 then formula $E=mc^2$ done."
     │
     ▼
 2.  escapeGarbledInlineMath   (on non-protected content)

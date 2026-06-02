@@ -12,7 +12,7 @@
     "rehype-katex": "^7.0.1",
     "rehype-stringify": "^10.0.1",
     "remark-math": "^6.0.0",
-    "remark-math-sanitizer": "^1.0.1",
+    "remark-math-sanitizer": "file:../..",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.1",
     "unified": "^11.0.5"

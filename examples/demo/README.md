@@ -1,10 +1,19 @@
 # `remark-math-sanitizer` — sample client
 
-A self-contained Node.js project that consumes `remark-math-sanitizer` from npm and verifies it fixes all five documented failure modes against a real `remark-math` + `rehype-katex` pipeline.
+A self-contained Node.js project that consumes `remark-math-sanitizer` and verifies it fixes all five documented failure modes against a real `remark-math` + `rehype-katex` pipeline.
+
+> The dependency on `remark-math-sanitizer` is a workspace path (`file:../..`),
+> so the demo always exercises the current working tree. Build the package once
+> in the repo root before installing the demo.
 
 ## Setup
 
 ```sh
+# from the repo root
+npm install
+npm run build
+
+# then
 cd examples/demo
 npm install
 ```
@@ -20,7 +29,7 @@ Expected output:
 ```
 remark-math-sanitizer demo — five failure modes
 
-package version: 1.0.1
+package version: 2.0.0
 
 Case 1: Currency before math      — PASS
 Case 2: Garbled prose in $...$    — PASS

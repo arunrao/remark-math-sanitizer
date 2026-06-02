@@ -26,7 +26,7 @@ const cases = [
     input: 'Cost $50 then $E=mc^2$ done.',
     // After sanitization, the $50 must be escaped and $E=mc^2$ must remain math.
     expect: (clean, html) =>
-      clean.includes('\\$50') &&
+      clean.includes('&#36;50') &&
       clean.includes('$E=mc^2$') &&
       html.includes('class="katex"'),
   },
@@ -38,8 +38,8 @@ const cases = [
     // The garbled span must be escaped (both $ become \$), so KaTeX never sees it.
     // Must NOT double-escape (\\$ would render as a literal backslash + open math).
     expect: (clean, html) =>
-      clean.includes('\\$7.2 m at 33.7') &&
-      !/\\\\\$/.test(clean) &&
+      clean.includes('&#36;7.2 m at 33.7') &&
+      !clean.includes('&#36;&#36;') &&
       !html.includes('katex-error') &&
       !html.includes('class="katex"'),
   },

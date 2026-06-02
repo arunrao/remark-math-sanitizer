@@ -15,26 +15,26 @@ import {
 
 describe('escapeCurrencyDollars', () => {
   it('escapes plain currency amounts', () => {
-    expect(escapeCurrencyDollars('Costs $8 per month.')).toBe('Costs \\$8 per month.');
+    expect(escapeCurrencyDollars('Costs $8 per month.')).toBe('Costs &#36;8 per month.');
     expect(escapeCurrencyDollars('Price is $1,000.50 today')).toBe(
-      'Price is \\$1,000.50 today'
+      'Price is &#36;1,000.50 today'
     );
   });
 
   it('escapes engine displacement units like $4.0T and $2.0L', () => {
-    expect(escapeCurrencyDollars('W205 ($4.0T V8)')).toBe('W205 (\\$4.0T V8)');
-    expect(escapeCurrencyDollars('new $2.0L turbo')).toBe('new \\$2.0L turbo');
-    expect(escapeCurrencyDollars('$4.0TV8)')).toBe('\\$4.0TV8)');
+    expect(escapeCurrencyDollars('W205 ($4.0T V8)')).toBe('W205 (&#36;4.0T V8)');
+    expect(escapeCurrencyDollars('new $2.0L turbo')).toBe('new &#36;2.0L turbo');
+    expect(escapeCurrencyDollars('$4.0TV8)')).toBe('&#36;4.0TV8)');
   });
 
   it('escapes amounts before CJK characters', () => {
-    expect(escapeCurrencyDollars('预算$50000元')).toBe('预算\\$50000元');
+    expect(escapeCurrencyDollars('预算$50000元')).toBe('预算&#36;50000元');
   });
 
   it('escapes magnitude amounts ($5M, $10k, $3bn)', () => {
-    expect(escapeCurrencyDollars('Cap of $5M and $10k.')).toBe('Cap of \\$5M and \\$10k.');
-    expect(escapeCurrencyDollars('Raised $3bn this round')).toBe('Raised \\$3bn this round');
-    expect(escapeCurrencyDollars('Revenue $1.5B total')).toBe('Revenue \\$1.5B total');
+    expect(escapeCurrencyDollars('Cap of $5M and $10k.')).toBe('Cap of &#36;5M and &#36;10k.');
+    expect(escapeCurrencyDollars('Raised $3bn this round')).toBe('Raised &#36;3bn this round');
+    expect(escapeCurrencyDollars('Revenue $1.5B total')).toBe('Revenue &#36;1.5B total');
   });
 
   it('does not escape real inline math', () => {
@@ -52,16 +52,16 @@ describe('escapeCurrencyDollars', () => {
 describe('escapeCurrencyRanges', () => {
   it('escapes both dollars in a hyphen range', () => {
     expect(escapeCurrencyRanges('Range is $5-$10 per unit.')).toBe(
-      'Range is \\$5-\\$10 per unit.'
+      'Range is &#36;5-&#36;10 per unit.'
     );
   });
 
   it('escapes both dollars in an en-dash range', () => {
-    expect(escapeCurrencyRanges('Range is $5\u2013$10.')).toBe('Range is \\$5\u2013\\$10.');
+    expect(escapeCurrencyRanges('Range is $5\u2013$10.')).toBe('Range is &#36;5\u2013&#36;10.');
   });
 
   it('handles decimal ranges with spaces', () => {
-    expect(escapeCurrencyRanges('$1.5 - $2.5')).toBe('\\$1.5 - \\$2.5');
+    expect(escapeCurrencyRanges('$1.5 - $2.5')).toBe('&#36;1.5 - &#36;2.5');
   });
 });
 
@@ -148,17 +148,17 @@ describe('containsMathExpressions', () => {
 describe('escapeGarbledInlineMath', () => {
   it('escapes inline math spans containing CJK characters', () => {
     expect(escapeGarbledInlineMath('Formula $E=mc^2中文解释$ here')).toBe(
-      'Formula \\$E=mc^2中文解释\\$ here'
+      'Formula &#36;E=mc^2中文解释&#36; here'
     );
   });
 
   it('escapes inline math spans containing markdown bold markers', () => {
-    expect(escapeGarbledInlineMath('$foo **bar** baz$')).toBe('\\$foo **bar** baz\\$');
+    expect(escapeGarbledInlineMath('$foo **bar** baz$')).toBe('&#36;foo **bar** baz&#36;');
   });
 
   it('escapes plain prose between two stray dollar signs', () => {
     expect(escapeGarbledInlineMath('A lone $ and another $ here.')).toBe(
-      'A lone \\$ and another \\$ here.'
+      'A lone &#36; and another &#36; here.'
     );
   });
 
@@ -181,14 +181,14 @@ describe('escapeGarbledInlineMath', () => {
   it('escapes physics prose wrapped in dollar signs (backslash-digit angle)', () => {
     const input = 'displacement is about $7.2 m at \\33.7^\\circ above the positive $x$-axis.';
     expect(escapeGarbledInlineMath(input)).toBe(
-      'displacement is about \\$7.2 m at 33.7° above the positive \\$x$-axis.'
+      'displacement is about &#36;7.2 m at 33.7° above the positive &#36;x$-axis.'
     );
   });
 
   it('escapes physics prose wrapped in dollar signs (plain degree angle)', () => {
     const input = 'displacement is 10 m at about $53.1^\\circ above the positive x$-axis.';
     expect(escapeGarbledInlineMath(input)).toBe(
-      'displacement is 10 m at about \\$53.1° above the positive x\\$-axis.'
+      'displacement is 10 m at about &#36;53.1° above the positive x&#36;-axis.'
     );
   });
 
@@ -234,61 +234,60 @@ describe('sanitizeLatexContent', () => {
     const input =
       'W205 C63 S (约 2015-2021，$4.0T V8) **，它和新一代 **W206 C63 S E Performance (约 2023 起，$2.0T 插混四缸)';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$4.0T V8');
-    expect(result).toContain('\\$2.0T 插混四缸');
+    expect(result).toContain('&#36;4.0T V8');
+    expect(result).toContain('&#36;2.0T 插混四缸');
     expect(result).not.toMatch(/(?<!\\)\$4\.0T[\s\S]*?\$2\.0T/);
   });
 
   it('handles a mix of currency forms without breaking real math', () => {
     const input = 'Budget $5M-$10M, margin $50%$, and $E = mc^2$ with $0.10/word.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$5M-\\$10M');
+    expect(result).toContain('&#36;5M-&#36;10M');
     expect(result).toContain('$50\\%$');
     expect(result).toContain('$E = mc^2$');
-    expect(result).toContain('\\$0.10/word');
+    expect(result).toContain('&#36;0.10/word');
   });
 
   it('unwraps garbled displacement prose (backslash-digit angle)', () => {
     const input = 'displacement is about $7.2 m at \\33.7^\\circ above the positive $x$-axis.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$7.2 m at 33.7° above the positive \\$');
+    expect(result).toContain('&#36;7.2 m at 33.7° above the positive &#36;');
     expect(result).not.toMatch(/(?<!\\)\$7\.2 m at/);
   });
 
   it('escapes currency prose with bold emphasis inside dollar pair', () => {
-    // Regression for consumer-reported "ThreadCraft" rendering:
-    // input was rendered as `\30 **andthecapssellfor** 40` (math-mode),
-    // proving sanitization had not run or was on an older version.
+    // Regression for consumer-reported "ThreadCraft" rendering.
     const input = 'sell for $30 **and the caps sell for** $40.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$30');
-    expect(result).toContain('\\$40');
-    expect(result).not.toMatch(/(?<!\\)\$30/);
+    expect(result).toContain('&#36;30');
+    expect(result).toContain('&#36;40');
+    expect(result).not.toMatch(/(?<![\\&])\$30/);
   });
 
   it('escapes long currency sentence wrongly wrapped as math (no emphasis)', () => {
     const input = 'the tote bags sell for $30 and the caps sell for $40.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$30');
-    expect(result).toContain('\\$40');
-    expect(result).not.toMatch(/(?<!\\)\$30/);
+    expect(result).toContain('&#36;30');
+    expect(result).toContain('&#36;40');
+    expect(result).not.toMatch(/(?<![\\&])\$30/);
   });
 
   it('does not double-escape already-escaped prose on the second pass', () => {
     // Regression: the second escapeGarbledInlineMath pass used to re-match
-    // \$prose\$ and re-wrap it as \\$prose\\$, which markdown then renders as
-    // a literal backslash followed by an unbalanced $ that opens math mode.
+    // its own output. With entity escaping, the dollars are replaced entirely
+    // so re-matching is impossible by construction.
     const input = 'The displacement is $7.2 m at 33.7° above the positive $x$ direction.';
     const result = sanitizeLatexContent(input);
-    expect(result).not.toMatch(/\\\\\$/); // no `\\$`
-    expect(result).toContain('\\$7.2 m at');
-    expect(result).toContain('positive \\$x');
+    expect(result).not.toContain('&#36;&#36;'); // no double-escape
+    expect(result).not.toMatch(/\\\\\$/);      // no `\\$` either
+    expect(result).toContain('&#36;7.2 m at');
+    expect(result).toContain('positive &#36;x');
   });
 
   it('unwraps garbled displacement prose (plain degree angle)', () => {
     const input = 'displacement is 10 m at about $53.1^\\circ above the positive x$-axis.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$53.1° above the positive x\\$');
+    expect(result).toContain('&#36;53.1° above the positive x&#36;');
     expect(result).not.toMatch(/(?<!\\)\$53\.1/);
   });
 
@@ -302,41 +301,62 @@ describe('sanitizeLatexContent', () => {
     // KaTeX would render "6.2L" in italic math mode. Both $ must be escaped.
     const input = '拿 $6.2L$ 自然吸气 V8';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$6.2L\\$');
+    expect(result).toContain('&#36;6.2L&#36;');
     expect(result).not.toMatch(/(?<!\\)\$6\.2L\$/);
   });
 
   it('escapes other paired displacement measurements ($4.0T$, $2.5V6$)', () => {
-    expect(sanitizeLatexContent('engine $4.0T$ power')).toContain('\\$4.0T\\$');
-    expect(sanitizeLatexContent('old $6.2L$ nat-asp')).toContain('\\$6.2L\\$');
+    expect(sanitizeLatexContent('engine $4.0T$ power')).toContain('&#36;4.0T&#36;');
+    expect(sanitizeLatexContent('old $6.2L$ nat-asp')).toContain('&#36;6.2L&#36;');
   });
 
   it('does NOT escape lowercase-variable math that matches the decimal pattern', () => {
-    // $9.8t$, $2.5x$, $3.14r$ are plausible physics/math expressions.
-    // The first letter is lowercase → NOT matched by step 0b → preserved as math.
+    // $9.8t$, $2.5x$ are plausible physics/math expressions.
+    // Plain-currency regex must not match `$9` before `.8t` (negative
+    // lookahead `(?!\.\d+[A-Za-z])`), and the math span itself contains no
+    // structural tokens so it is not affected by step 0b.
     expect(sanitizeLatexContent('time $9.8t$ seconds')).toContain('$9.8t$');
     expect(sanitizeLatexContent('distance $2.5x$ units')).toContain('$2.5x$');
+    expect(sanitizeLatexContent('radius $3.14r$ today')).toContain('$3.14r$');
   });
 
   // ── Currency-adjacent-to-math parity bug ────────────────────────────────────
 
   it('fixes currency before real math — core parity bug', () => {
-    // Before fix: the opening $ of $E=mc^2$ was being escaped by
-    // escapeCurrencyDollars, leaving a dangling $ at the end.
+    const input = 'Cost $50 then $E=mc^2$ done.';
+    const result = sanitizeLatexContent(input);
+    expect(result).toContain('&#36;50');
+    expect(result).toMatch(/\$E=mc\^2\$/);
+  });
+
+  it('fixes currency-then-prose-then-real-math (regression for ThreadCraft-class bug)', () => {
+    // Multiple prose words between $currency and $math used to trigger the
+    // garbled-detection heuristic on the (currency, math-opener) lazy pair,
+    // eating the opening $ of the real math span. The step-1 smart pairing
+    // protects $E=mc^2$ first so step 2 never sees it as part of a prose pair.
     const input = 'Cost $50 then formula $E=mc^2$ done.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$50');
+    expect(result).toContain('&#36;50');
     expect(result).toMatch(/\$E=mc\^2\$/);
+    expect(result).not.toMatch(/&#36;E=mc/); // math opener NOT escaped
+  });
+
+  it('fixes real-math-then-prose-then-currency (mirror case)', () => {
+    const input = 'The formula $E=mc^2$ then we charge $50 per item.';
+    const result = sanitizeLatexContent(input);
+    expect(result).toMatch(/\$E=mc\^2\$/);
+    expect(result).toContain('&#36;50');
+    expect(result).not.toMatch(/&#36;E=mc/);
   });
 
   it('handles multiple currencies before real math', () => {
     const input = 'Between $5 and $10, the velocity is $v = at$.';
     const result = sanitizeLatexContent(input);
-    expect(result).toContain('\\$5');
-    expect(result).toContain('\\$10');
+    expect(result).toContain('&#36;5');
+    expect(result).toContain('&#36;10');
     expect(result).toContain('$v = at$');
-    expect(result).not.toMatch(/(?<!\\)\$5\b/);
-    expect(result).not.toMatch(/(?<!\\)\$10\b/);
+    expect(result).not.toMatch(/(?<![\\&])\$5\b/);
+    expect(result).not.toMatch(/(?<![\\&])\$10\b/);
   });
 
   it('preserves $50%$ as KaTeX math with escaped percent', () => {
@@ -375,6 +395,49 @@ describe('sanitizeLatexContent', () => {
   });
 
   // ── LATEX_FORMATTING_GUIDELINES ──────────────────────────────────────────────
+
+  // ── currencyEscape option ────────────────────────────────────────────────────
+
+  it("defaults to entity escaping ('&#36;')", () => {
+    const result = sanitizeLatexContent('Cost $50 then $E=mc^2$ done.');
+    expect(result).toContain('&#36;50');
+    expect(result).not.toContain('\\$50');
+  });
+
+  it("emits backslash escapes when currencyEscape: 'backslash'", () => {
+    const result = sanitizeLatexContent('Cost $50 then $E=mc^2$ done.', {
+      currencyEscape: 'backslash',
+    });
+    expect(result).toContain('\\$50');
+    expect(result).not.toContain('&#36;');
+  });
+
+  it('threads the option through escapeCurrencyDollars', () => {
+    expect(escapeCurrencyDollars('Costs $8.', { currencyEscape: 'backslash' })).toBe(
+      'Costs \\$8.'
+    );
+    expect(escapeCurrencyDollars('Costs $8.', { currencyEscape: 'entity' })).toBe(
+      'Costs &#36;8.'
+    );
+  });
+
+  it('threads the option through escapeCurrencyRanges', () => {
+    expect(escapeCurrencyRanges('$5-$10', { currencyEscape: 'backslash' })).toBe(
+      '\\$5-\\$10'
+    );
+    expect(escapeCurrencyRanges('$5-$10', { currencyEscape: 'entity' })).toBe(
+      '&#36;5-&#36;10'
+    );
+  });
+
+  it('threads the option through escapeGarbledInlineMath', () => {
+    expect(
+      escapeGarbledInlineMath('$foo **bar** baz$', { currencyEscape: 'backslash' })
+    ).toBe('\\$foo **bar** baz\\$');
+    expect(
+      escapeGarbledInlineMath('$foo **bar** baz$', { currencyEscape: 'entity' })
+    ).toBe('&#36;foo **bar** baz&#36;');
+  });
 
   it('LATEX_FORMATTING_GUIDELINES is a non-empty string', async () => {
     const { LATEX_FORMATTING_GUIDELINES } = await import('../src/index.js');
