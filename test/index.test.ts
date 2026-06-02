@@ -255,6 +255,25 @@ describe('sanitizeLatexContent', () => {
     expect(result).not.toMatch(/(?<!\\)\$7\.2 m at/);
   });
 
+  it('escapes currency prose with bold emphasis inside dollar pair', () => {
+    // Regression for consumer-reported "ThreadCraft" rendering:
+    // input was rendered as `\30 **andthecapssellfor** 40` (math-mode),
+    // proving sanitization had not run or was on an older version.
+    const input = 'sell for $30 **and the caps sell for** $40.';
+    const result = sanitizeLatexContent(input);
+    expect(result).toContain('\\$30');
+    expect(result).toContain('\\$40');
+    expect(result).not.toMatch(/(?<!\\)\$30/);
+  });
+
+  it('escapes long currency sentence wrongly wrapped as math (no emphasis)', () => {
+    const input = 'the tote bags sell for $30 and the caps sell for $40.';
+    const result = sanitizeLatexContent(input);
+    expect(result).toContain('\\$30');
+    expect(result).toContain('\\$40');
+    expect(result).not.toMatch(/(?<!\\)\$30/);
+  });
+
   it('does not double-escape already-escaped prose on the second pass', () => {
     // Regression: the second escapeGarbledInlineMath pass used to re-match
     // \$prose\$ and re-wrap it as \\$prose\\$, which markdown then renders as
