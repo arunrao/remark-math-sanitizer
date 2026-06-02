@@ -129,6 +129,17 @@ const CURRENCY_UNIT_BOUNDARY =
   '(?:\\s|[.,;:!?\\)\\]}"\'\\u3001\\uFF0C\\uFF01\\uFF1F\\u4e00-\\u9fff]|$)';
 
 /**
+ * Boundary used by the **plain currency** match only — same as
+ * CURRENCY_UNIT_BOUNDARY plus two patterns common in LLM output:
+ *   - `\(\d` for parenthetical citations like `$15(18)`
+ *   - `\$`   for back-to-back currencies like `$380$` or `$5$`
+ * Kept separate from CURRENCY_UNIT_BOUNDARY so magnitude / displacement
+ * matches (which legitimately appear inside math) are not affected.
+ */
+const PLAIN_CURRENCY_BOUNDARY =
+  '(?:\\s|[.,;:!?\\)\\]}"\'\\u3001\\uFF0C\\uFF01\\uFF1F\\u4e00-\\u9fff]|\\(\\d|\\$|$)';
+
+/**
  * Magnitude suffixes commonly attached to currency amounts (e.g. $5M, $10k).
  * Constrained to a known set so we don't escape real inline math like $5x$.
  */
@@ -179,7 +190,9 @@ export function escapeCurrencyDollars(content: string, options?: SanitizeOptions
       // when followed by `.<digits><letter>` (e.g. `$9.8t$`, `$3.14r$`),
       // which would otherwise treat the leading `9` as currency and break
       // the real math span.
-      `\\d[\\d,]*(?:\\.\\d{1,2})?(?!\\.\\d+[A-Za-z])${unitBoundary}`,
+      // Uses PLAIN_CURRENCY_BOUNDARY (extended with `\(\d` and `\$`) so
+      // patterns like `$15(18)` and `$380$` are caught.
+      `\\d[\\d,]*(?:\\.\\d{1,2})?(?!\\.\\d+[A-Za-z])${PLAIN_CURRENCY_BOUNDARY}`,
       '|',
       // Displacement / unit suffix — e.g. $4.0T, $2.0L, $4.0TV8
       `\\d+\\.\\d+[A-Z][A-Za-z0-9]{0,3}${unitBoundary}`,
@@ -462,11 +475,18 @@ export function sanitizeLatexContent(content: string, options?: SanitizeOptions)
       const close = positions[nextK];
       const inner = result.slice(open + 1, close);
       if (inner.includes('\n')) continue; // never pair across newlines
-      if (MATH_TOKEN_RE.test(inner)) {
-        toProtect.push({ open, close });
-        claimed.add(open);
-        claimed.add(close);
-      }
+      if (!MATH_TOKEN_RE.test(inner)) continue;
+      // Refinement: a span whose inner starts with a digit AND contains no
+      // `\<letter>` LaTeX command is almost certainly a currency-arithmetic
+      // pattern like `$15(18) + 5(22) = $`, NOT a real math expression.
+      // Real math that opens with a digit (e.g. `$2x = 4$`) typically still
+      // contains a backslash command somewhere, or is a short literal that
+      // doesn't need protection at all. Skip these so step 5 can escape the
+      // currency `$15(`, `$380$`, etc.
+      if (/^\d/.test(inner) && !/\\[a-zA-Z]/.test(inner)) continue;
+      toProtect.push({ open, close });
+      claimed.add(open);
+      claimed.add(close);
     }
 
     // Apply replacements right-to-left so left-side offsets remain valid.

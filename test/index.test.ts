@@ -349,6 +349,41 @@ describe('sanitizeLatexContent', () => {
     expect(result).not.toMatch(/&#36;E=mc/);
   });
 
+  it('escapes currency with parenthetical citations like $15(18)', () => {
+    expect(escapeCurrencyDollars('Pay $15(18) per item.')).toBe(
+      'Pay &#36;15(18) per item.'
+    );
+    expect(escapeCurrencyDollars('Pay $15(18) per item.', { currencyEscape: 'backslash' })).toBe(
+      'Pay \\$15(18) per item.'
+    );
+  });
+
+  it('does NOT treat $5(x+y)$ as currency (real math preserved)', () => {
+    // `(` followed by a non-digit must NOT be a currency boundary.
+    expect(sanitizeLatexContent('Solve $5(x+y)$ now.')).toContain('$5(x+y)$');
+  });
+
+  it('escapes back-to-back currency $380$ pattern', () => {
+    expect(escapeCurrencyDollars('Owe $380$ today.')).toBe('Owe &#36;380$ today.');
+  });
+
+  it('fixes currency-arithmetic with embedded equals sign (regression)', () => {
+    // Reported: $15(18) + 5(22) = $380$ was protected as math (inner has =)
+    // and rendered as a broken KaTeX expression. Step 1b now skips spans
+    // that open with a digit and contain no \cmd.
+    const input = '$15(18) + 5(22) = $380$';
+    const result = sanitizeLatexContent(input);
+    expect(result).toContain('&#36;15(18)');
+    expect(result).toContain('&#36;380');
+    expect(result).not.toMatch(/\$15\(18\) \+ 5\(22\) = \$/); // not a math span
+  });
+
+  it('escapes currency-arithmetic without embedded equals', () => {
+    expect(sanitizeLatexContent('Total: $15(18) + $380(22)')).toBe(
+      'Total: &#36;15(18) + &#36;380(22)'
+    );
+  });
+
   it('handles multiple currencies before real math', () => {
     const input = 'Between $5 and $10, the velocity is $v = at$.';
     const result = sanitizeLatexContent(input);
