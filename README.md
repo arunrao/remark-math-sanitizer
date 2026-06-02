@@ -260,9 +260,10 @@ The demo also runs sanity checks on the smaller exported helpers (`containsMathE
 
 | Export | Description |
 |---|---|
-| `sanitizeLatexContent(str, options?)` | **Main function.** Runs the full 11-step pipeline. |
+| `sanitizeLatexContent(str, options?)` | **Main function.** Runs the full 12-step pipeline. |
 | `wrapBareLatexEnvironments(str)` | Wraps `\begin{equation}…\end{equation}` (and other display environments) in `$$…$$`. |
 | `stripCurrencyDollarBeforeMathResult(str)` | Collapses `$calc = $RESULT$` (e.g. `$15(18) + 5(22) = $380$`) into a single math span by removing the spurious `$` before the result. |
+| `fixAdjacentInlineAndDisplayMath(str)` | Inserts `\n\n` between `$inline$` and an immediately following `$$display$$` so remark-math parses each correctly (otherwise `\begin{cases}…` bodies render verbatim). |
 | `escapeGarbledInlineMath(str)` | Detects and escapes `$…$` spans that contain prose rather than LaTeX. |
 | `escapeCurrencyDollars(str)` | Escapes `$50`, `$5M`, `$4.0T` etc. so they are not parsed as math. |
 | `escapeCurrencyRanges(str)` | Escapes both `$` in ranges like `$5–$10`. |
@@ -365,6 +366,12 @@ LLM output
 8.  normalizeLatexDelimiters   \(…\) → $…$   \[…\] → $$…$$
 9.  escapeMathPercent          (second pass — catches % in newly-created spans)
 10. sanitizeMathUnicode        (replace Unicode in all math spans)
+    │
+    ▼
+11. fixAdjacentInlineAndDisplayMath
+    └─ `$inline$ $$display$$` (same line) → `$inline$\n\n$$display$$`
+       remark-math otherwise treats the display block as raw text and
+       `\begin{cases}…\end{cases}` renders verbatim.
     │
     ▼
   sanitized output  →  ReactMarkdown + remarkMath + rehypeKatex

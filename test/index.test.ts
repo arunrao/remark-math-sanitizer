@@ -10,6 +10,7 @@ import {
   containsMathExpressions,
   wrapBareLatexEnvironments,
   stripCurrencyDollarBeforeMathResult,
+  fixAdjacentInlineAndDisplayMath,
 } from '../src/index.js';
 
 // ─── escapeCurrencyDollars ────────────────────────────────────────────────────
@@ -228,6 +229,35 @@ describe('wrapBareLatexEnvironments', () => {
   });
 });
 
+// ─── fixAdjacentInlineAndDisplayMath ─────────────────────────────────────────
+
+describe('fixAdjacentInlineAndDisplayMath', () => {
+  it("inserts \\n\\n between adjacent $inline$ and $$display$$", () => {
+    expect(fixAdjacentInlineAndDisplayMath('$\\pi_u =$ $$\\begin{cases}a\\end{cases}$$')).toBe(
+      '$\\pi_u =$\n\n$$\\begin{cases}a\\end{cases}$$'
+    );
+  });
+
+  it('handles multiple spaces between the two spans', () => {
+    expect(fixAdjacentInlineAndDisplayMath('$x$   $$y$$')).toBe('$x$\n\n$$y$$');
+  });
+
+  it('leaves already-separated math alone', () => {
+    expect(fixAdjacentInlineAndDisplayMath('$x$\n\n$$y$$')).toBe('$x$\n\n$$y$$');
+  });
+
+  it('does not touch $$display$$ followed by $$display$$', () => {
+    expect(fixAdjacentInlineAndDisplayMath('$$a$$ $$b$$')).toBe('$$a$$ $$b$$');
+  });
+
+  it('does not touch prose between the two spans', () => {
+    // Prose between `$inline$` and `$$` means the regex must not match.
+    expect(fixAdjacentInlineAndDisplayMath('$x$ then later $$y$$')).toBe(
+      '$x$ then later $$y$$'
+    );
+  });
+});
+
 // ─── sanitizeLatexContent (integration) ──────────────────────────────────────
 
 describe('sanitizeLatexContent', () => {
@@ -388,6 +418,17 @@ describe('sanitizeLatexContent', () => {
     expect(stripCurrencyDollarBeforeMathResult('budget = $50 plus extras')).toBe(
       'budget = $50 plus extras'
     );
+  });
+
+  it('splits adjacent inline and display math onto separate lines', () => {
+    // From a real chat screenshot: `$\pi'_u =$ $$\begin{cases}…\end{cases}$$`
+    // on one line caused the cases block to render verbatim because remark-math
+    // does not parse adjacent inline + display correctly. Step 11 inserts \n\n.
+    const input =
+      "$\\pi'_u =$ $$\\begin{cases} \\frac{(p_u-c)(1-p_u)}{p_f^2} & \\text{if } p_u > p_f \\end{cases}$$";
+    const result = sanitizeLatexContent(input);
+    expect(result).toContain("$\\pi'_u =$\n\n$$");
+    expect(result).toContain('\\begin{cases}');
   });
 
   it('handles multiple currencies before real math', () => {

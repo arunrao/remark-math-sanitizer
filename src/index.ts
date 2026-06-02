@@ -369,6 +369,27 @@ export function stripCurrencyDollarBeforeMathResult(content: string): string {
   );
 }
 
+/**
+ * Forces a paragraph break between an inline `$…$` span and an immediately
+ * following display `$$…$$` block on the same line.
+ *
+ * remark-math treats `$inline$ $$display$$` as malformed — the display block
+ * is left as raw text and a `\begin{cases}…\end{cases}` body inside it renders
+ * verbatim. Inserting a blank line between the two spans is enough to make
+ * remark-math parse each independently.
+ *
+ * The regex deliberately only matches **single-line** `$inline$` followed by
+ * whitespace and `$$` so it never touches multi-paragraph content where the
+ * two are already separated.
+ */
+export function fixAdjacentInlineAndDisplayMath(content: string): string {
+  if (!content) return content;
+  return content.replace(
+    /(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)\s+\$\$/g,
+    (_match, inner: string) => `$${inner}$\n\n$$`
+  );
+}
+
 // ─── Main pipeline ────────────────────────────────────────────────────────────
 
 /**
@@ -396,6 +417,10 @@ export function stripCurrencyDollarBeforeMathResult(content: string): string {
  * 8. `normalizeLatexDelimiters`    — `\(…\)` → `$…$`,  `\[…\]` → `$$…$$`
  * 9. `escapeMathPercent`           — second pass after delimiter conversion
  * 10. `sanitizeMathUnicode`        — replace KaTeX-invalid Unicode in math
+ * 11. `fixAdjacentInlineAndDisplayMath` — insert `\n\n` between `$inline$`
+ *     and an immediately following `$$display$$` on the same line, so
+ *     remark-math parses each independently (otherwise `\begin{cases}…`
+ *     bodies render verbatim).
  *
  * @param content - Raw LLM output (may be partial during streaming)
  * @returns Sanitized string ready for ReactMarkdown with math plugins
@@ -528,6 +553,12 @@ export function sanitizeLatexContent(content: string, options?: SanitizeOptions)
   result = normalizeLatexDelimiters(result);
   result = escapeMathPercent(result);
   result = sanitizeMathUnicode(result);
+
+  // Step 11: force a paragraph break between an inline `$…$` and an
+  // immediately following display `$$…$$` so remark-math parses each
+  // independently. Must run AFTER delimiter normalization (step 8) so
+  // any `\(…\) \[…\]` patterns are first rewritten to `$…$ $$…$$`.
+  result = fixAdjacentInlineAndDisplayMath(result);
 
   return result;
 }
